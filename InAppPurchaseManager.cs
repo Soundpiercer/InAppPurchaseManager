@@ -46,8 +46,8 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     #endregion
 
     // Unity IAP
-    private static IStoreController m_StoreController;          // The Unity Purchasing system.
-    private static IExtensionProvider m_StoreExtensionProvider; // The store-specific Purchasing subsystems.
+    private static IStoreController storeController;          // The Unity Purchasing system.
+    private static IExtensionProvider storeExtensionProvider; // The store-specific Purchasing subsystems.
 
     // Managed Products.
     public List<string> managedProducts = new List<string>();
@@ -62,12 +62,12 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     /// is your purchase in Full Process Steps? (Client - IAP - App Store - IAP - Client - Server - Client)
     /// </summary>
     [HideInInspector]
-	public bool isPurchaseUnderProcess;
+    public bool isPurchaseUnderProcess;
 
     // Purchase Restoration Popup
     [HideInInspector]
     public bool shouldShowPurchaseRestorePopup;
-	private string restoredProductName;
+    private string restoredProductName;
     private bool hasPopupShown;
 
     private IEnumerator Start()
@@ -76,7 +76,7 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
         InitializeManagedProducts();
 
         // Unity IAP
-        if (m_StoreController == null)
+        if (storeController == null)
         {
             InitializePurchasing();
         }
@@ -89,14 +89,15 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     #region Start Subroutines
     private void InitializeManagedProducts()
     {
-        List<string> productIdsInYourDB;
-        // Fetch productID data from your DB
+        List<string> productIdsInYourDB = new List<string>();
+
+        // ###################### Fetch productID data from your DB
         managedProducts = productIdsInYourDB;
     }
 
     private bool IsInitialized()
     {
-        return m_StoreController != null && m_StoreExtensionProvider != null;
+        return storeController != null && storeExtensionProvider != null;
     }
 
     private void InitializePurchasing()
@@ -106,18 +107,18 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
 
         var builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance());
 
-        #if UNITY_ANDROID
+#if UNITY_ANDROID
         string storeName = GooglePlay.Name;
-        #elif UNITY_IOS
+#elif UNITY_IOS
         string storeName = AppleAppStore.Name;
-        #endif
+#endif
 
         // Add managedProducts to the builder.
         foreach (string productName in managedProducts)
         {
             builder.AddProduct(
-                productName, 
-                ProductType.Consumable, 
+                productName,
+                ProductType.Consumable,
                 new IDs {{ productName, storeName }
                 });
         }
@@ -129,8 +130,8 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         Debug.Log("[In-App Purchase Manager] >>>>>> OnInitialized: PASS");
 
-        m_StoreController = controller;
-        m_StoreExtensionProvider = extensions;
+        storeController = controller;
+        storeExtensionProvider = extensions;
     }
 
     public void OnInitializeFailed(InitializationFailureReason error)
@@ -139,19 +140,19 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     }
 
     private IEnumerator ReleaseAllUnfinishedTransactionsOnFirstRunEnumerator()
-	{
-		// Unity IAP Initialization is Asynchronous, so we should wait
-		yield return new WaitUntil(IsInitialized);
+    {
+        // Unity IAP Initialization is Asynchronous, so we should wait
+        yield return new WaitUntil(IsInitialized);
 
         // Some of your LIVE SERVICE users may already received the items via your CUSTOMER SERVICE,
         // so we treat all pending transactions as COMPENSATED.
         // this process is executed ONLY ONCE.
-		if (PlayerPrefs.GetInt ("FirstRunPurchaseRestorationHasExecuted", 0) == 0) 
-		{
-			PlayerPrefs.SetInt("FirstRunPurchaseRestorationHasExecuted", 1);
-			ReleaseAllUnfinishedUnityIAPTransactions();
-		}
-	}
+        if (PlayerPrefs.GetInt("FirstRunPurchaseRestorationHasExecuted", 0) == 0)
+        {
+            PlayerPrefs.SetInt("FirstRunPurchaseRestorationHasExecuted", 1);
+            ReleaseAllUnfinishedUnityIAPTransactions();
+        }
+    }
     #endregion
 
     #region Show Purchase Restoration Popup
@@ -160,12 +161,12 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     // ENTERING TITLE / LOBBY SCENE is strongly recommended.
     public void CheckAndShowWindowIfRestoredPurchaseExists(Action showPopupCallback = null)
     {
-		if (shouldShowPurchaseRestorePopup)
-			StartCoroutine (ShowEnumerator (showPopupCallback));
+        if (shouldShowPurchaseRestorePopup)
+            StartCoroutine(ShowEnumerator(showPopupCallback));
     }
 
-	private IEnumerator ShowEnumerator(Action showPopupCallback = null)
-	{
+    private IEnumerator ShowEnumerator(Action showPopupCallback = null)
+    {
         // Show only once!
         if (hasPopupShown) yield break;
 
@@ -175,17 +176,17 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
             yield break;
         }
 
-		if (string.IsNullOrEmpty(restoredProductName))
-		{
-			yield break;
-		}
+        if (string.IsNullOrEmpty(restoredProductName))
+        {
+            yield break;
+        }
 
         // Show Popup.
         showPopupCallback();
 
         // Set Variables.
         shouldShowPurchaseRestorePopup = false;
-		restoredProductName = string.Empty;
+        restoredProductName = string.Empty;
         hasPopupShown = true;
     }
     #endregion
@@ -195,12 +196,12 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         if (IsInitialized())
         {
-            Product product = m_StoreController.products.WithID(productId);
+            Product product = storeController.products.WithID(productId);
 
             if (product != null && product.availableToPurchase)
             {
                 Debug.Log(string.Format("[In-App Purchase Manager] <<<<<< Purchasing product asychronously: '{0}'", product.definition.id));
-                m_StoreController.InitiatePurchase(product);
+                storeController.InitiatePurchase(product);
             }
             else
             {
@@ -221,21 +222,21 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     public PurchaseProcessingResult ProcessPurchase(PurchaseEventArgs args)
     {
         // Client Side Receipt Validation
-        bool validPurchase = CheckReceipt(args.purchasedProduct); 
+        bool validPurchase = CheckReceipt(args.purchasedProduct);
 
         if (validPurchase)
         {
             Debug.Log(string.Format("[In-App Purchase Manager] >>>>>> ProcessPurchase: PASS. Product: '{0}'", args.purchasedProduct.definition.id));
-        } 
+        }
         else
         {
             Debug.LogError(string.Format("[In-App Purchase Manager] >>>>>> ProcessPurchase: Fail (receipt Valid Error)  Product: '{0}'", args.purchasedProduct.definition.id));
         }
-            
+
         isBuyingInClient = false;
 
         // NORMAL PURCHASE
-        if (isPurchaseUnderProcess) 
+        if (isPurchaseUnderProcess)
         {
             Debug.LogWarning("[In-App Purchase Manager] <<<<<< Pending sku start!");
             return PurchaseProcessingResult.Pending;
@@ -259,14 +260,11 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
 
     private bool CheckReceipt(Product product)
     {
-        string receipt = product.receipt;
-        string transactionId = product.transactionID;
-
         var validator = new CrossPlatformValidator(GooglePlayTangle.Data(), AppleTangle.Data(), Application.identifier);
         try
         {
-            Debug.Log(args.purchasedProduct.receipt);
-            var result = validator.Validate(args.purchasedProduct.receipt);
+            Debug.Log(product.receipt);
+            var result = validator.Validate(product.receipt);
         }
         catch (IAPSecurityException)
         {
@@ -290,14 +288,14 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         foreach (string productId in managedProducts)
         {
-            Product p = m_StoreController.products.WithID(productId);
+            Product p = storeController.products.WithID(productId);
             if (p != null)
-                m_StoreController.ConfirmPendingPurchase(p);
+                storeController.ConfirmPendingPurchase(p);
         }
 
         isPurchaseUnderProcess = false;
         shouldShowPurchaseRestorePopup = false;
-		restoredProductName = string.Empty;
+        restoredProductName = string.Empty;
     }
     #endregion
 
@@ -310,19 +308,19 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
         // YourServerLogic(productId, product, OnServerConnectionSuccess)
 
         yield return null;
-		restoredProductName = productId;
+        restoredProductName = productId;
     }
 
-	private void OnServerConnectionSuccess(bool isSuccess)
+    private void OnServerConnectionSuccess(bool isSuccess)
     {
         if (isSuccess)
         {
-			Debug.LogWarning("[In-App Purchase Manager : API Connection] >>>>>> Server Connection Success!");
+            Debug.LogWarning("[In-App Purchase Manager : API Connection] >>>>>> Server Connection Success!");
             shouldShowPurchaseRestorePopup = true;
         }
         else
         {
-			Debug.LogError("[In-App Purchase Manager : API Connection] >>>>>> Server Connection Error! (Duplicated Request, Already Confirmed Receipt, or else)");
+            Debug.LogError("[In-App Purchase Manager : API Connection] >>>>>> Server Connection Error! (Duplicated Request, Already Confirmed Receipt, or else)");
         }
     }
 
@@ -331,7 +329,7 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     /// </summary>
     public static string ExtractPayload(string receipt)
     {
-        string[] separators = {"\"Payload\":\""};
+        string[] separators = { "\"Payload\":\"" };
         string[] splittedStrings = receipt.Split(separators, StringSplitOptions.None);
 
         receipt = splittedStrings[1].Replace("\"}", "");
