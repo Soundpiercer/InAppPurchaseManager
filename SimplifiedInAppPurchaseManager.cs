@@ -41,8 +41,8 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     #endregion
 
     // Unity IAP
-    private static IStoreController m_StoreController;          // The Unity Purchasing system.
-    private static IExtensionProvider m_StoreExtensionProvider; // The store-specific Purchasing subsystems.
+    private static IStoreController storeController;          // The Unity Purchasing system.
+    private static IExtensionProvider storeExtensionProvider; // The store-specific Purchasing subsystems.
 
     // Managed Products.
     public List<string> managedProducts = new List<string>();
@@ -57,13 +57,7 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     /// is your purchase in Full Process Steps? (Client - IAP - App Store - IAP - Client - Server - Client)
     /// </summary>
     [HideInInspector]
-	public bool isPurchaseUnderProcess;
-
-    // Purchase Restoration Popup
-    [HideInInspector]
-    public bool shouldShowPurchaseRestorePopup;
-	private string restoredProductName;
-    private bool hasPopupShown;
+    public bool isPurchaseUnderProcess;
 
     private IEnumerator Start()
     {
@@ -71,22 +65,24 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
         InitializeManagedProducts();
 
         // Unity IAP
-        if (m_StoreController == null)
+        if (storeController == null)
         {
             InitializePurchasing();
         }
+
+        yield break;
     }
 
     #region Start Subroutines
     private void InitializeManagedProducts()
     {
-        // Initialize your product ID List
+        // ################# Initialize your product ID List
         //managedProducts = new List<string>{"testProduct"};
     }
 
     private bool IsInitialized()
     {
-        return m_StoreController != null && m_StoreExtensionProvider != null;
+        return storeController != null && storeExtensionProvider != null;
     }
 
     private void InitializePurchasing()
@@ -96,18 +92,18 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
 
         var builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance());
 
-        #if UNITY_ANDROID
+#if UNITY_ANDROID
         string storeName = GooglePlay.Name;
-        #elif UNITY_IOS
+#elif UNITY_IOS
         string storeName = AppleAppStore.Name;
-        #endif
+#endif
 
         // Add managedProducts to the builder.
         foreach (string productName in managedProducts)
         {
             builder.AddProduct(
-                productName, 
-                ProductType.Consumable, 
+                productName,
+                ProductType.Consumable,
                 new IDs {{ productName, storeName }
                 });
         }
@@ -119,8 +115,8 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         Debug.Log("[In-App Purchase Manager] >>>>>> OnInitialized: PASS");
 
-        m_StoreController = controller;
-        m_StoreExtensionProvider = extensions;
+        storeController = controller;
+        storeExtensionProvider = extensions;
     }
 
     public void OnInitializeFailed(InitializationFailureReason error)
@@ -134,12 +130,12 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         if (IsInitialized())
         {
-            Product product = m_StoreController.products.WithID(productId);
+            Product product = storeController.products.WithID(productId);
 
             if (product != null && product.availableToPurchase)
             {
                 Debug.Log(string.Format("[In-App Purchase Manager] <<<<<< Purchasing product asychronously: '{0}'", product.definition.id));
-                m_StoreController.InitiatePurchase(product);
+                storeController.InitiatePurchase(product);
             }
             else
             {
@@ -160,17 +156,17 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     public PurchaseProcessingResult ProcessPurchase(PurchaseEventArgs args)
     {
         // Client Side Receipt Validation
-        bool validPurchase = CheckReceipt(args.purchasedProduct); 
+        bool validPurchase = CheckReceipt(args.purchasedProduct);
 
         if (validPurchase)
         {
             Debug.Log(string.Format("[In-App Purchase Manager] >>>>>> ProcessPurchase: PASS. Product: '{0}'", args.purchasedProduct.definition.id));
-        } 
+        }
         else
         {
             Debug.LogError(string.Format("[In-App Purchase Manager] >>>>>> ProcessPurchase: Fail (receipt Valid Error)  Product: '{0}'", args.purchasedProduct.definition.id));
         }
-            
+
         isBuyingInClient = false;
 
         // NORMAL PURCHASE
@@ -180,14 +176,11 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
 
     private bool CheckReceipt(Product product)
     {
-        string receipt = product.receipt;
-        string transactionId = product.transactionID;
-
         var validator = new CrossPlatformValidator(GooglePlayTangle.Data(), AppleTangle.Data(), Application.identifier);
         try
         {
-            Debug.Log(args.purchasedProduct.receipt);
-            var result = validator.Validate(args.purchasedProduct.receipt);
+            Debug.Log(product.receipt);
+            var result = validator.Validate(product.receipt);
         }
         catch (IAPSecurityException)
         {
@@ -209,7 +202,7 @@ public class SimplifiedInAppPurchaseManager : MonoBehaviour, IStoreListener
     /// </summary>
     public static string ExtractPayload(string receipt)
     {
-        string[] separators = {"\"Payload\":\""};
+        string[] separators = { "\"Payload\":\"" };
         string[] splittedStrings = receipt.Split(separators, StringSplitOptions.None);
 
         receipt = splittedStrings[1].Replace("\"}", "");
