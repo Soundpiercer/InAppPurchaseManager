@@ -7,7 +7,8 @@
 //
 // [How to Use]
 // 1. Attach this script into your GameObject
-// 2. Call BuyProductID from outside to Start Purchase
+// 2. Initialize this IAP Manager after user login has completed
+// 3. Call BuyProductID from outside to start purchase
 
 using System;
 using System.Collections;
@@ -91,18 +92,20 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     {
         List<string> productIdsInYourDB = new List<string>();
 
-        // ###################### Fetch productID data from your DB
+        // ###################### YOUR LOGIC GOES HERE
+        // ###################### productIdsInYourDB = (Fetched productID list from your DB)
+
         managedProducts = productIdsInYourDB;
     }
 
-    private bool IsInitialized()
+    private bool HasInitialized()
     {
         return storeController != null && storeExtensionProvider != null;
     }
 
     private void InitializePurchasing()
     {
-        if (IsInitialized())
+        if (HasInitialized())
             return;
 
         var builder = ConfigurationBuilder.Instance(StandardPurchasingModule.Instance());
@@ -142,7 +145,7 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     private IEnumerator ReleaseAllUnfinishedTransactionsOnFirstRunEnumerator()
     {
         // Unity IAP Initialization is Asynchronous, so we should wait
-        yield return new WaitUntil(IsInitialized);
+        yield return new WaitUntil(HasInitialized);
 
         // Some of your LIVE SERVICE users may already received the items via your CUSTOMER SERVICE,
         // so we treat all pending transactions as COMPENSATED.
@@ -155,46 +158,10 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
     }
     #endregion
 
-    #region Show Purchase Restoration Popup
-    // This method is called from outside of the manager.
-    // You can call this method anytime when you want. 
-    // ENTERING TITLE / LOBBY SCENE is strongly recommended.
-    public void CheckAndShowWindowIfRestoredPurchaseExists(Action showPopupCallback = null)
-    {
-        if (shouldShowPurchaseRestorePopup)
-            StartCoroutine(ShowEnumerator(showPopupCallback));
-    }
-
-    private IEnumerator ShowEnumerator(Action showPopupCallback = null)
-    {
-        // Show only once!
-        if (hasPopupShown) yield break;
-
-        // Check ProductID Validity
-        if (!managedProducts.Contains(restoredProductName))
-        {
-            yield break;
-        }
-
-        if (string.IsNullOrEmpty(restoredProductName))
-        {
-            yield break;
-        }
-
-        // Show Popup.
-        showPopupCallback();
-
-        // Set Variables.
-        shouldShowPurchaseRestorePopup = false;
-        restoredProductName = string.Empty;
-        hasPopupShown = true;
-    }
-    #endregion
-
-    #region Unity IAP (Transaction Control, Client Side Purchase Restoration)
+    #region Unity IAP (Transaction Control)
     public IEnumerator BuyProductID(string productId)
     {
-        if (IsInitialized())
+        if (HasInitialized())
         {
             Product product = storeController.products.WithID(productId);
 
@@ -242,7 +209,7 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
             return PurchaseProcessingResult.Pending;
 
             // ########################################################################
-            // ################ Type your server connection logic here ################
+            // ## YOUR SERVER LOGIC GOES HERE : VALIDATE THE RECEIPT AND GIVE THE ITEMS
             // ########################################################################
             // YourServerLogic(args.purchaseProduct.definition.id, args.purchaseProduct, ReleaseAllUnfinishedUnityIAPTransactions)
         }
@@ -280,30 +247,13 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
         Debug.LogErrorFormat(string.Format("OnPurchaseFailed: FAIL. Product: '{0}', PurchaseFailureReason: {1}", product.definition.storeSpecificId, failureReason));
         isBuyingInClient = false;
     }
-
-    /// <summary>
-    /// Releases all unfinished unity IAP transactions. Works on unfinished transactions (Pending) only
-    /// </summary>
-    public void ReleaseAllUnfinishedUnityIAPTransactions()
-    {
-        foreach (string productId in managedProducts)
-        {
-            Product p = storeController.products.WithID(productId);
-            if (p != null)
-                storeController.ConfirmPendingPurchase(p);
-        }
-
-        isPurchaseUnderProcess = false;
-        shouldShowPurchaseRestorePopup = false;
-        restoredProductName = string.Empty;
-    }
     #endregion
 
-    #region Purchase Restoration (Server Side)
+    #region Purchase Restoration
     private IEnumerator PurchaseRestoreEnumerator(string productId, Product product)
     {
         // ########################################################################
-        // ################ Type your server connection logic here ################
+        // ## YOUR SERVER LOGIC GOES HERE : VALIDATE THE RECEIPT AND GIVE THE ITEMS
         // ########################################################################
         // YourServerLogic(productId, product, OnServerConnectionSuccess)
 
@@ -324,6 +274,7 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
         }
     }
 
+    /*
     /// <summary>
     /// Extract Payload part from your receipt for Server Side Receipt Validation.
     /// </summary>
@@ -334,6 +285,60 @@ public class InAppPurchaseManager : MonoBehaviour, IStoreListener
 
         receipt = splittedStrings[1].Replace("\"}", "");
         return receipt;
+    }
+    */
+
+    /// <summary>
+    /// Releases all unfinished unity IAP transactions. Works on unfinished transactions (Pending) only
+    /// </summary>
+    public void ReleaseAllUnfinishedUnityIAPTransactions()
+    {
+        foreach (string productId in managedProducts)
+        {
+            Product p = storeController.products.WithID(productId);
+            if (p != null)
+                storeController.ConfirmPendingPurchase(p);
+        }
+
+        isPurchaseUnderProcess = false;
+        shouldShowPurchaseRestorePopup = false;
+        restoredProductName = string.Empty;
+    }
+    #endregion
+
+    #region Show Purchase Restoration Popup
+    // This method is called from outside of the manager.
+    // You can call this method anytime when you want. 
+    // ENTERING TITLE / LOBBY SCENE is strongly recommended.
+    public void CheckAndShowWindowIfRestoredPurchaseExists(Action showPopupCallback = null)
+    {
+        if (shouldShowPurchaseRestorePopup)
+            StartCoroutine(ShowEnumerator(showPopupCallback));
+    }
+
+    private IEnumerator ShowEnumerator(Action showPopupCallback = null)
+    {
+        // Show only once!
+        if (hasPopupShown) yield break;
+
+        // Check ProductID Validity
+        if (!managedProducts.Contains(restoredProductName))
+        {
+            yield break;
+        }
+
+        if (string.IsNullOrEmpty(restoredProductName))
+        {
+            yield break;
+        }
+
+        // Show Popup.
+        showPopupCallback();
+
+        // Set Variables.
+        shouldShowPurchaseRestorePopup = false;
+        restoredProductName = string.Empty;
+        hasPopupShown = true;
     }
     #endregion
 }
